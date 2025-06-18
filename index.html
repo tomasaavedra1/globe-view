@@ -1,150 +1,103 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Nike-Style Globe</title>
+  <title>South America Tour</title>
+  <script src="https://unpkg.com/globe.gl@2.24.0/dist/globe.gl.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     body { 
       margin: 0; 
-      overflow: hidden; 
       background: #000; 
+      overflow: hidden; 
+      font-family: 'Arial', sans-serif;
     }
-    canvas { 
-      display: block; 
+    #globe { 
+      width: 100vw; 
+      height: 100vh; 
     }
     .city-label {
       position: absolute;
+      background: rgba(255,255,255,0.4);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font: bold 14px 'Arial', sans-serif;
       color: white;
-      font-family: 'Arial', sans-serif;
-      font-weight: bold;
       text-transform: uppercase;
       pointer-events: none;
-    }
-    .city-bg {
-      background: rgba(0, 0, 0, 0.5);
-      padding: 5px 10px;
-      border-radius: 3px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      backdrop-filter: blur(2px);
     }
   </style>
 </head>
 <body>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+  <div id="globe"></div>
+
   <script>
-    // Scene setup
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    // 1. Initialize globe
+    const globe = Globe()
+      .globeImageUrl(null)
+      .backgroundImageUrl(null)
+      .showAtmosphere(true)
+      .atmosphereColor('rgba(255,50,50,0.25)')
+      (document.getElementById('globe'));
 
-    // Globe (wireframe sphere)
-    const geometry = new THREE.SphereGeometry(2, 32, 32);
-    const material = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.3
-    });
-    const globe = new THREE.Mesh(geometry, material);
-    scene.add(globe);
+    // 2. Wireframe style
+    const globeMaterial = globe.globeMaterial();
+    globeMaterial.wireframe = true;
+    globeMaterial.color.set(0xffffff);
+    globeMaterial.emissive.set(0xff3333);
+    globeMaterial.emissiveIntensity = 0.15;
 
-    // Red gradient (feathered circle)
-    const gradientTexture = new THREE.CanvasTexture(createGradientCanvas());
-    const gradientGeometry = new THREE.SphereGeometry(2.1, 64, 64);
-    const gradientMaterial = new THREE.MeshBasicMaterial({ 
-      map: gradientTexture,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide
-    });
-    const gradientSphere = new THREE.Mesh(gradientGeometry, gradientMaterial);
-    scene.add(gradientSphere);
-
-    // City coordinates (lat/long to 3D)
+    // 3. Cities data
     const cities = [
-      { name: "SÃO PAULO", lat: -23.55, lng: -46.63 },
-      { name: "SANTIAGO", lat: -33.45, lng: -70.66 },
-      { name: "LIMA", lat: -12.05, lng: -77.05 }
+      { name: "SÃO PAULO", lat: -23.5505, lng: -46.6333 },
+      { name: "LIMA", lat: -12.0464, lng: -77.0428 },
+      { name: "SANTIAGO", lat: -33.4489, lng: -70.6693 }
     ];
 
-    // Add city labels (DOM elements)
-    cities.forEach(city => {
-      const label = document.createElement('div');
-      label.className = 'city-label';
-      label.innerHTML = `<div class="city-bg">${city.name}</div>`;
-      document.body.appendChild(label);
-    });
+    // 4. Add city points
+    globe.pointsData(cities)
+      .pointColor('#ff0000')
+      .pointRadius(0.2)
+      .pointAltitude(0.1);
 
-    // Arcs between cities
-    const arcMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.5 });
-    cities.forEach((cityA, i) => {
-      cities.slice(i + 1).forEach(cityB => {
-        const arc = createArc(cityA, cityB, 2.2);
-        scene.add(arc);
+    // 5. Add CONNECTING ARCS (fixed)
+    globe.arcsData([
+      { startLat: -23.5505, startLng: -46.6333, endLat: -12.0464, endLng: -77.0428 },
+      { startLat: -12.0464, startLng: -77.0428, endLat: -33.4489, endLng: -70.6693 },
+      { startLat: -33.4489, startLng: -70.6693, endLat: -23.5505, endLng: -46.6333 }
+    ])
+    .arcColor(['rgba(255,100,100,0.8)', 'rgba(255,50,50,0.2)'])
+    .arcDashLength(0.25)
+    .arcDashAnimateTime(3000)
+    .arcStroke(0.5);
+
+    // 6. Auto-ROTATION (fixed)
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.3;
+
+    // 7. City LABELS (fixed)
+    const label = document.createElement('div');
+    label.className = 'city-label';
+    document.body.appendChild(label);
+
+    globe.onPointHover(point => {
+      if (point) {
+        label.textContent = point.name;
+        label.style.opacity = 1;
+        const { x, y } = globe.getScreenCoords(point.lat, point.lng);
+        label.style.left = `${x}px`;
+        label.style.top = `${y}px`;
+      } else {
+        label.style.opacity = 0;
       }
     });
 
-    camera.position.z = 5;
-
-    // Animation loop
-    function animate() {
-      requestAnimationFrame(animate);
-      globe.rotation.x += 0.001;
-      globe.rotation.y += 0.002;
-      gradientSphere.rotation.x += 0.0003;
-      gradientSphere.rotation.y += 0.0005;
-      updateCityLabels();
-      renderer.render(scene, camera);
-    }
-    animate();
-
-    // Helper functions
-    function createGradientCanvas() {
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-      gradient.addColorStop(0, 'rgba(255, 0, 0, 0.8)');
-      gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 256, 256);
-      return canvas;
-    }
-
-    function createArc(cityA, cityB, radius) {
-      const points = [];
-      for (let i = 0; i <= 30; i++) {
-        const t = i / 30;
-        const phi = t * Math.PI;
-        const x = radius * Math.sin(phi);
-        const y = radius * Math.cos(phi) - radius;
-        points.push(new THREE.Vector3(x, y, 0));
-      }
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      return new THREE.Line(geometry, arcMaterial);
-    }
-
-    function updateCityLabels() {
-      cities.forEach((city, i) => {
-        const vector = new THREE.Vector3();
-        vector.setFromSphericalCoords(
-          2.1,
-          THREE.MathUtils.degToRad(90 - city.lat),
-          THREE.MathUtils.degToRad(city.lng + 180)
-        );
-        vector.project(camera);
-        const label = document.querySelectorAll('.city-label')[i];
-        label.style.transform = `translate(-50%, -50%) translate(${vector.x * window.innerWidth / 2 + window.innerWidth / 2}px, ${-vector.y * window.innerHeight / 2 + window.innerHeight / 2}px)`;
-      });
-    }
-
-    // Handle resize
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    // 8. Initial camera focus on South America
+    setTimeout(() => {
+      globe.pointOfView({ lat: -25, lng: -60, altitude: 2 }, 1000);
+    }, 500);
   </script>
 </body>
 </html>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Globe View</title>
   <script src="https://unpkg.com/globe.gl"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -33,18 +34,16 @@
       text-transform: uppercase;
       transform: translate(-50%, -50%);
       pointer-events: none;
+      white-space: nowrap;
       opacity: 1;
       transition: opacity 0.3s ease;
-      white-space: nowrap;
     }
   </style>
 </head>
 <body>
   <div id="globeContainer"></div>
 
-  <script type="module">
-    import * as THREE from 'https://cdn.skypack.dev/three@0.128.0';
-
+  <script>
     const cities = [
       { name: "SÃO PAULO", lat: -23.5505, lng: -46.6333 },
       { name: "LIMA", lat: -12.0464, lng: -77.0428 },
@@ -65,56 +64,27 @@
       .atmosphereAltitude(0.25)
       (document.getElementById('globeContainer'));
 
-    // Wireframe globe
-    const globeMaterial = globe.globeMaterial();
-    globeMaterial.color.set(0xffffff);
-    globeMaterial.wireframe = true;
-    globeMaterial.emissive.set(0xff0055);
-    globeMaterial.emissiveIntensity = 0.1;
-
-    const globeGeometry = new THREE.SphereGeometry(1, 10, 10);
-    globe.globeObject().geometry.dispose();
-    globe.globeObject().geometry = globeGeometry;
-
-    // Glow layer with turbulence
-    const glowGeometry = new THREE.SphereGeometry(1.03, 32, 32);
-    const glowMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0 }
-      },
-      vertexShader: `
-        varying vec3 vNormal;
-        uniform float time;
-        void main() {
-          vec3 pos = position + 0.03 * normal * sin(time + position.y * 10.0);
-          vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float time;
-        varying vec3 vNormal;
-        void main() {
-          float intensity = pow(0.6 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-          float pulse = sin(time * 0.5) * 0.2 + 0.9;
-          gl_FragColor = vec4(1.0, 0.1, 0.3, intensity * 0.4 * pulse);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      side: THREE.BackSide
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    glow.scale.set(1.03, 1.03, 1.03);
-    globe.scene().add(glow);
-
-    function animateGlow() {
-      glowMaterial.uniforms.time.value += 0.01;
-      requestAnimationFrame(animateGlow);
+    // Find the mesh manually (since globeObject() is not available)
+    function replaceGlobeGeometry() {
+      const mesh = globe.scene().children.find(obj =>
+        obj.type === 'Mesh' &&
+        obj.geometry &&
+        obj.geometry.type === 'SphereGeometry'
+      );
+      if (mesh) {
+        mesh.geometry.dispose();
+        mesh.geometry = new THREE.SphereGeometry(1, 10, 10); // Low-poly
+        mesh.material.wireframe = true;
+        mesh.material.color.set(0xffffff);
+        mesh.material.emissive.set(0xff00aa);
+        mesh.material.emissiveIntensity = 0.1;
+      }
     }
-    animateGlow();
 
-    // Arcs with pulse animation
+    // Call the replacement after a short delay to ensure the scene is ready
+    setTimeout(replaceGlobeGeometry, 100);
+
+    // Add arcs
     globe.arcsData(arcs)
       .arcColor(() => 'hotpink')
       .arcDashLength(0.4)
@@ -124,14 +94,14 @@
       .arcCurveResolution(32)
       .arcsMerge(true);
 
-    // Points for cities
+    // Add points
     globe.pointsData(cities)
       .pointColor(() => 'white')
       .pointAltitude(0.1)
       .pointRadius(0.2)
       .pointResolution(8);
 
-    // City labels that fade based on camera distance
+    // Always-visible city labels
     globe.htmlElementsData(cities)
       .htmlLat(d => d.lat)
       .htmlLng(d => d.lng)
@@ -142,15 +112,15 @@
         return el;
       });
 
-    // Label fade based on camera distance
+    // Optional: Label opacity based on camera distance
     globe.controls().addEventListener('change', () => {
       const camZ = globe.camera().position.length();
       document.querySelectorAll('.city-label').forEach(el => {
-        el.style.opacity = camZ < 4 ? 1 : 0.2;
+        el.style.opacity = camZ < 4 ? '1' : '0.3';
       });
     });
 
-    // Initial camera position
+    // Camera initial position
     setTimeout(() => {
       globe.pointOfView({ lat: -25, lng: -60, altitude: 2 }, 1500);
     }, 500);

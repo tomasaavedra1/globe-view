@@ -64,7 +64,7 @@
       .atmosphereAltitude(0.25)
       (document.getElementById('globeContainer'));
 
-    // Find the mesh manually (since globeObject() is not available)
+    // Replace globe mesh with low-poly wireframe
     function replaceGlobeGeometry() {
       const mesh = globe.scene().children.find(obj =>
         obj.type === 'Mesh' &&
@@ -74,27 +74,27 @@
       if (mesh) {
         mesh.geometry.dispose();
         mesh.geometry = new THREE.SphereGeometry(1, 10, 10); // Low-poly
-        mesh.material.wireframe = true;
-        mesh.material.color.set(0xffffff);
-        mesh.material.emissive.set(0xff00aa);
-        mesh.material.emissiveIntensity = 0.1;
+        mesh.material.dispose();
+        mesh.material = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: true
+        });
+      } else {
+        console.warn("Globe mesh not found.");
       }
     }
-
-    // Call the replacement after a short delay to ensure the scene is ready
     setTimeout(replaceGlobeGeometry, 100);
 
-    // Add arcs
+    // Arcs: Hot pink & animated
     globe.arcsData(arcs)
       .arcColor(() => 'hotpink')
       .arcDashLength(0.4)
       .arcDashGap(1)
       .arcDashAnimateTime(2000)
       .arcStroke(1.5)
-      .arcCurveResolution(32)
-      .arcsMerge(true);
+      .arcCurveResolution(32);
 
-    // Add points
+    // Points (city dots)
     globe.pointsData(cities)
       .pointColor(() => 'white')
       .pointAltitude(0.1)
@@ -112,7 +112,7 @@
         return el;
       });
 
-    // Optional: Label opacity based on camera distance
+    // Optional: Dim labels when zoomed out
     globe.controls().addEventListener('change', () => {
       const camZ = globe.camera().position.length();
       document.querySelectorAll('.city-label').forEach(el => {
@@ -120,7 +120,7 @@
       });
     });
 
-    // Camera initial position
+    // Camera setup
     setTimeout(() => {
       globe.pointOfView({ lat: -25, lng: -60, altitude: 2 }, 1500);
     }, 500);
@@ -130,7 +130,7 @@
     globe.controls().autoRotateSpeed = 0.4;
     globe.controls().dampingFactor = 0.1;
 
-    // Responsive
+    // Handle resize
     window.addEventListener('resize', () => {
       globe.width(window.innerWidth);
       globe.height(window.innerHeight);

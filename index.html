@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Globe View</title>
+  <title>South America Tour</title>
   <script src="https://unpkg.com/globe.gl"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <style>
@@ -23,20 +23,25 @@
 
     .city-label {
       position: absolute;
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.4);
       backdrop-filter: blur(4px);
-      padding: 5px 10px;
+      padding: 8px 16px;
       border-radius: 4px;
       font-size: 12px;
       font-weight: bold;
       color: white;
-      border: 1px solid rgba(255, 255, 255, 0.2);
       text-transform: uppercase;
       transform: translate(-50%, -50%);
       pointer-events: none;
       white-space: nowrap;
-      opacity: 1;
+      opacity: 0;
       transition: opacity 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .city-label.active {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.6);
     }
   </style>
 </head>
@@ -44,93 +49,117 @@
   <div id="globeContainer"></div>
 
   <script>
+    // City data
     const cities = [
       { name: "SÃO PAULO", lat: -23.5505, lng: -46.6333 },
       { name: "LIMA", lat: -12.0464, lng: -77.0428 },
       { name: "SANTIAGO", lat: -33.4489, lng: -70.6693 }
     ];
 
+    // Arc connections
     const arcs = [
       { startLat: -23.5505, startLng: -46.6333, endLat: -12.0464, endLng: -77.0428 },
       { startLat: -12.0464, startLng: -77.0428, endLat: -33.4489, endLng: -70.6693 },
       { startLat: -33.4489, startLng: -70.6693, endLat: -23.5505, endLng: -46.6333 }
     ];
 
+    // Initialize globe
     const globe = Globe()
       .globeImageUrl(null)
       .backgroundImageUrl(null)
       .showAtmosphere(true)
-      .atmosphereColor('rgba(255, 50, 50, 0.1)')
-      .atmosphereAltitude(0.25)
+      .atmosphereColor('rgba(255, 50, 50, 0.15)')
+      .atmosphereAltitude(0.3)
       (document.getElementById('globeContainer'));
 
-    // Replace globe mesh with low-poly wireframe
-    function replaceGlobeGeometry() {
-      const mesh = globe.scene().children.find(obj =>
-        obj.type === 'Mesh' &&
-        obj.geometry &&
-        obj.geometry.type === 'SphereGeometry'
-      );
-      if (mesh) {
-        mesh.geometry.dispose();
-        mesh.geometry = new THREE.SphereGeometry(1, 10, 10); // Low-poly
-        mesh.material.dispose();
-        mesh.material = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          wireframe: true
-        });
-      } else {
-        console.warn("Globe mesh not found.");
-      }
+    // Custom wireframe globe
+    const globeMaterial = globe.globeMaterial();
+    globeMaterial.wireframe = true;
+    globeMaterial.color.set(0xffffff);
+    globeMaterial.emissive.set(0xff3333);
+    globeMaterial.emissiveIntensity = 0.1;
+    
+    // Reduce polygon count for cleaner wireframe look
+    const globeGeometry = new THREE.SphereGeometry(1, 16, 16);
+    globe.globeObject().geometry.dispose();
+    globe.globeObject().geometry = globeGeometry;
+
+    // Add animated glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.02, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    globe.scene().add(glow);
+    
+    // Pulsing glow animation
+    function animateGlow() {
+      const pulse = 0.9 + Math.sin(Date.now() * 0.003) * 0.1;
+      glowMaterial.opacity = 0.15 * pulse;
+      glow.scale.setScalar(1 + (1 - pulse) * 0.05);
+      requestAnimationFrame(animateGlow);
     }
-    setTimeout(replaceGlobeGeometry, 100);
+    animateGlow();
 
-    // Arcs: Hot pink & animated
-    globe.arcsData(arcs)
-      .arcColor(() => 'hotpink')
-      .arcDashLength(0.4)
-      .arcDashGap(1)
-      .arcDashAnimateTime(2000)
-      .arcStroke(1.5)
-      .arcCurveResolution(32);
-
-    // Points (city dots)
+    // Add city points
     globe.pointsData(cities)
-      .pointColor(() => 'white')
+      .pointColor(() => '#ff0000')
       .pointAltitude(0.1)
       .pointRadius(0.2)
       .pointResolution(8);
 
-    // Always-visible city labels
-    globe.htmlElementsData(cities)
-      .htmlLat(d => d.lat)
-      .htmlLng(d => d.lng)
-      .htmlElement(d => {
-        const el = document.createElement('div');
-        el.className = 'city-label';
-        el.textContent = d.name;
-        return el;
-      });
+    // Add animated arcs
+    globe.arcsData(arcs)
+      .arcColor(() => ['rgba(255,100,100,0.8)', 'rgba(255,50,50,0.2)'])
+      .arcDashLength(0.25)
+      .arcDashGap(0.5)
+      .arcDashAnimateTime(3000)
+      .arcStroke(0.5)
+      .arcCurveResolution(32);
 
-    // Optional: Dim labels when zoomed out
-    globe.controls().addEventListener('change', () => {
-      const camZ = globe.camera().position.length();
-      document.querySelectorAll('.city-label').forEach(el => {
-        el.style.opacity = camZ < 4 ? '1' : '0.3';
-      });
+    // City labels
+    const label = document.createElement('div');
+    label.className = 'city-label';
+    document.body.appendChild(label);
+
+    let activeCity = null;
+    
+    function handleCityInteraction(point) {
+      if (point) {
+        label.textContent = point.name;
+        label.style.opacity = 1;
+        label.classList.add('active');
+        const { x, y } = globe.getScreenCoords(point.lat, point.lng);
+        label.style.left = `${x}px`;
+        label.style.top = `${y}px`;
+      } else {
+        label.style.opacity = 0;
+        label.classList.remove('active');
+      }
+    }
+
+    globe.onPointHover(handleCityInteraction);
+    globe.onPointClick(point => {
+      activeCity = point;
+      handleCityInteraction(point);
+      // Zoom to city
+      globe.pointOfView({ lat: point.lat, lng: point.lng, altitude: 1.5 }, 1000);
     });
 
-    // Camera setup
+    // Auto-rotation
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.3;
+    globe.controls().dampingFactor = 0.1;
+
+    // Initial camera focus on South America
     setTimeout(() => {
       globe.pointOfView({ lat: -25, lng: -60, altitude: 2 }, 1500);
     }, 500);
 
-    // Auto-rotation
-    globe.controls().autoRotate = true;
-    globe.controls().autoRotateSpeed = 0.4;
-    globe.controls().dampingFactor = 0.1;
-
-    // Handle resize
+    // Handle window resize
     window.addEventListener('resize', () => {
       globe.width(window.innerWidth);
       globe.height(window.innerHeight);
